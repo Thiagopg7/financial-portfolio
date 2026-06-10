@@ -1,0 +1,13 @@
+# Configuração do gitleaks para este projeto.
+# Estende o conjunto de regras padrão do gitleaks.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Caminhos e padrões ignorados (não contêm segredos reais)"
+paths = [
+    '''\.env\.example$''',
+    '''package-lock\.json$''',
+    '''composer\.lock$''',
+    '''pnpm-lock\.yaml$''',
+]

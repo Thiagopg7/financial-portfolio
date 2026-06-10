@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+#
+# Hook de pre-commit: bloqueia commits que contenham segredos (chaves
+# privadas, credenciais, tokens, senhas) usando o gitleaks.
+#
+# Para pular pontualmente (use com cautela): git commit --no-verify
+
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+    echo "❌ gitleaks não encontrado — commit bloqueado por segurança."
+    echo
+    echo "   Instale com um dos comandos abaixo:"
+    echo "     • Linux  : brew install gitleaks  (ou baixe em https://github.com/gitleaks/gitleaks/releases)"
+    echo "     • Go     : go install github.com/gitleaks/gitleaks/v8@latest"
+    echo
+    echo "   Para pular esta verificação pontualmente: git commit --no-verify"
+    exit 1
+fi
+
+echo "🔍 gitleaks: verificando segredos no conteúdo staged..."
+
+if ! gitleaks git --pre-commit --staged --redact --verbose -c .gitleaks.toml; then
+    echo
+    echo "❌ Possível segredo detectado — commit bloqueado."
+    echo "   Revise os achados acima, remova o segredo do stage e tente novamente."
+    echo "   Se for um falso-positivo, ajuste o allowlist em .gitleaks.toml."
+    echo "   Para pular pontualmente (não recomendado): git commit --no-verify"
+    exit 1
+fi
+
+echo "✅ gitleaks: nenhum segredo detectado."
+exit 0
