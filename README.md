@@ -89,9 +89,3 @@ E instale o binário do `gitleaks` (ver [releases](https://github.com/gitleaks/g
   ou verifique `docker compose logs node`.
 - **Porta `3306` em uso** — já existe um MySQL local. Troque para `3307:3306` no
   `docker-compose.yml`.
-
-## Convenções
-
-- Respostas, commits e mensagens de UI em **PT-BR**; código (identificadores) em **inglês**.
-- Commits em Conventional Commits: `tipo(escopo): descrição`.
-- Detalhes em [`CLAUDE.md`](CLAUDE.md).
