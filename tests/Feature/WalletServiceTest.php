@@ -5,6 +5,7 @@ use App\Enums\TransactionType;
 use App\Exceptions\InsufficientBalanceException;
 use App\Exceptions\TransactionAlreadyReversedException;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Models\Wallet;
 use App\Services\WalletService;
 
@@ -127,5 +128,15 @@ describe('reverse', function () {
 
         expect(fn () => $this->service->reverse($reversal))
             ->toThrow(InvalidArgumentException::class);
+    });
+
+    it('registra quem solicitou a reversão', function () {
+        $wallet = Wallet::factory()->withBalance(0)->create();
+        $requester = User::factory()->create();
+        $deposit = $this->service->deposit($wallet, 3000);
+
+        $reversal = $this->service->reverse($deposit, $requester)->first();
+
+        expect($reversal->requested_by_user_id)->toBe($requester->id);
     });
 });

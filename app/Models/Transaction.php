@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property string $reference
  * @property int|null $counterparty_wallet_id
  * @property int|null $reverses_transaction_id
+ * @property int|null $requested_by_user_id
  * @property Carbon|null $reversed_at
  * @property string|null $description
  * @property Carbon|null $created_at
@@ -39,6 +40,7 @@ class Transaction extends Model
         'reference',
         'counterparty_wallet_id',
         'reverses_transaction_id',
+        'requested_by_user_id',
         'reversed_at',
         'description',
     ];
@@ -79,6 +81,14 @@ class Transaction extends Model
     public function reversesTransaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class, 'reverses_transaction_id');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function requestedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'requested_by_user_id');
     }
 
     public function isReversed(): bool

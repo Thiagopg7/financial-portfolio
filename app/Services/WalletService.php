@@ -7,6 +7,7 @@ use App\Enums\TransactionType;
 use App\Exceptions\InsufficientBalanceException;
 use App\Exceptions\TransactionAlreadyReversedException;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -18,11 +19,11 @@ class WalletService
     /**
      * Deposita um valor na carteira. Soma ao saldo mesmo que ele esteja negativo.
      */
-    public function deposit(Wallet $wallet, int $amount, ?string $description = null): Transaction
+    public function deposit(Wallet $wallet, int $amount, ?string $description = null, ?User $requestedBy = null): Transaction
     {
         $this->assertPositiveAmount($amount);
 
-        return DB::transaction(function () use ($wallet, $amount, $description): Transaction {
+        return DB::transaction(function () use ($wallet, $amount, $description, $requestedBy): Transaction {
             $locked = $this->lockWallet($wallet->id);
             $balanceAfter = $locked->balance + $amount;
             $locked->update(['balance' => $balanceAfter]);
@@ -35,6 +36,7 @@ class WalletService
                 balanceAfter: $balanceAfter,
                 reference: (string) Str::ulid(),
                 description: $description,
+                requestedByUserId: $requestedBy?->id,
             );
         });
     }
@@ -44,7 +46,7 @@ class WalletService
      *
      * @throws InsufficientBalanceException
      */
-    public function transfer(Wallet $from, Wallet $to, int $amount, ?string $description = null): Transaction
+    public function transfer(Wallet $from, Wallet $to, int $amount, ?string $description = null, ?User $requestedBy = null): Transaction
     {
         $this->assertPositiveAmount($amount);
 
@@ -52,7 +54,7 @@ class WalletService
             throw new InvalidArgumentException('Não é possível transferir para a própria carteira.');
         }
 
-        return DB::transaction(function () use ($from, $to, $amount, $description): Transaction {
+        return DB::transaction(function () use ($from, $to, $amount, $description, $requestedBy): Transaction {
             // Trava as duas carteiras em ordem de id para evitar deadlock entre transferências concorrentes.
             $wallets = $this->lockWallets([$from->id, $to->id]);
             $source = $wallets[$from->id];
@@ -75,6 +77,7 @@ class WalletService
                 reference: $reference,
                 counterpartyWalletId: $target->id,
                 description: $description,
+                requestedByUserId: $requestedBy?->id,
             );
 
             $targetBalance = $target->balance + $amount;
@@ -88,6 +91,7 @@ class WalletService
                 reference: $reference,
                 counterpartyWalletId: $source->id,
                 description: $description,
+                requestedByUserId: $requestedBy?->id,
             );
 
             return $debit;
@@ -101,9 +105,9 @@ class WalletService
      *
      * @throws TransactionAlreadyReversedException
      */
-    public function reverse(Transaction $transaction, ?string $description = null): Collection
+    public function reverse(Transaction $transaction, ?User $requestedBy = null, ?string $description = null): Collection
     {
-        return DB::transaction(function () use ($transaction, $description): Collection {
+        return DB::transaction(function () use ($transaction, $requestedBy, $description): Collection {
             // Trava os lançamentos para impedir reversão dupla por requisições concorrentes.
             /** @var Collection<int, Transaction> $entries */
             $entries = Transaction::where('reference', $transaction->reference)
@@ -123,7 +127,7 @@ class WalletService
             $wallets = $this->lockWallets($entries->pluck('wallet_id')->all());
             $reference = (string) Str::ulid();
 
-            return $entries->map(function (Transaction $entry) use ($wallets, $reference, $description): Transaction {
+            return $entries->map(function (Transaction $entry) use ($wallets, $reference, $requestedBy, $description): Transaction {
                 $wallet = $wallets[$entry->wallet_id];
                 $inverseDirection = $entry->direction === TransactionDirection::Credit
                     ? TransactionDirection::Debit
@@ -145,6 +149,7 @@ class WalletService
                     counterpartyWalletId: $entry->counterparty_wallet_id,
                     reversesTransactionId: $entry->id,
                     description: $description,
+                    requestedByUserId: $requestedBy?->id,
                 );
 
                 $entry->update(['reversed_at' => now()]);
@@ -186,6 +191,7 @@ class WalletService
         ?int $counterpartyWalletId = null,
         ?int $reversesTransactionId = null,
         ?string $description = null,
+        ?int $requestedByUserId = null,
     ): Transaction {
         return $wallet->transactions()->create([
             'type' => $type,
@@ -196,6 +202,7 @@ class WalletService
             'counterparty_wallet_id' => $counterpartyWalletId,
             'reverses_transaction_id' => $reversesTransactionId,
             'description' => $description,
+            'requested_by_user_id' => $requestedByUserId,
         ]);
     }
 
