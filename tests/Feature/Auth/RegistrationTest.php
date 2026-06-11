@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\User;
 use Laravel\Fortify\Features;
 
 beforeEach(function () {
@@ -22,4 +23,18 @@ test('new users can register', function () {
 
     $this->assertAuthenticated();
     $response->assertRedirect(route('dashboard', absolute: false));
+});
+
+test('new users get a wallet with zero balance', function () {
+    $this->post(route('register.store'), [
+        'name' => 'Test User',
+        'email' => 'wallet@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+    ]);
+
+    $user = User::where('email', 'wallet@example.com')->first();
+
+    expect($user->wallet)->not->toBeNull()
+        ->and($user->wallet->balance)->toBe(0);
 });
