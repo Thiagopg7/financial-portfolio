@@ -25,7 +25,6 @@ class CreateNewUser implements CreatesNewUsers
             'password' => $this->passwordRules(),
         ])->validate();
 
-        // Usuário e carteira nascem juntos, de forma atômica.
         return DB::transaction(function () use ($input): User {
             $user = User::create([
                 'name' => $input['name'],
