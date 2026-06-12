@@ -45,12 +45,27 @@ Acesse **http://localhost:8000**.
 |---------|----------------|--------------|-------|
 | `web`   | `nginx:1.27-alpine` | `8000` | Entrada HTTP; serve `public/` e faz `fastcgi_pass app:9000` |
 | `app`   | `docker/php/Dockerfile` (`php:8.5-fpm`) | — | PHP-FPM (artisan, filas) |
-| `db`    | `mysql:8.4` | `3306` | Banco; dados no volume `mysqldata` |
+| `db`    | `mysql:8.4` | — (ver override) | Banco; dados no volume `mysqldata`. Não exposto no host por padrão |
 | `node`  | mesmo Dockerfile do `app` | `5173` | Vite + HMR |
 
 ### Acesso ao banco por um cliente (DBeaver, Workbench, ...)
 
-- **Host:** `127.0.0.1` · **Porta:** `3306`
+Por padrão o MySQL **não fica exposto no host** — só é acessível pela rede interna
+do Compose (a aplicação o alcança como `db:3306`). Para abrir uma porta no host e
+conectar com um cliente, crie um override local:
+
+```bash
+cp docker-compose.override.yml.example docker-compose.override.yml
+docker compose up -d   # aplica o override
+```
+
+O `docker-compose.override.yml` é carregado automaticamente pelo Compose e **não é
+versionado** — cada máquina escolhe a porta livre que quiser (ajuste no arquivo se
+a `3306` já estiver ocupada por um MySQL local, ex.: `"3307:3306"`).
+
+Depois, conecte com:
+
+- **Host:** `127.0.0.1` · **Porta:** a que você definiu no override (ex.: `3306` ou `3307`)
 - **Banco:** `financial_portfolio` · **Usuário:** `laravel` · **Senha:** a do `DB_PASSWORD` do seu `.env`
 - Para acesso total, use `root` com a mesma senha.
 
@@ -87,5 +102,5 @@ E instale o binário do `gitleaks` (ver [releases](https://github.com/gitleaks/g
   após recriar só esse container). Resolva com `docker compose restart web`.
 - **Tela sem estilo / "Vite manifest not found"** — o Vite ainda não subiu; aguarde
   ou verifique `docker compose logs node`.
-- **Porta `3306` em uso** — já existe um MySQL local. Troque para `3307:3306` no
-  `docker-compose.yml`.
+- **Porta em uso ao expor o banco** — já existe um MySQL local na porta escolhida.
+  Edite o seu `docker-compose.override.yml` e use outra porta de host (ex.: `"3307:3306"`).
