@@ -22,6 +22,7 @@ class TransferController extends Controller
                 amount: $request->amountInCents(),
                 description: $request->validated('description'),
                 requestedBy: $request->user(),
+                idempotencyKey: $request->validated('idempotency_key'),
             );
         } catch (InsufficientBalanceException $e) {
             throw ValidationException::withMessages(['amount' => $e->getMessage()]);

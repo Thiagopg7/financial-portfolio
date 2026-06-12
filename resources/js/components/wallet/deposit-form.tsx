@@ -1,4 +1,5 @@
 import { Form } from '@inertiajs/react';
+import { useRef } from 'react';
 import { toast } from 'sonner';
 import DepositController from '@/actions/App/Http/Controllers/DepositController';
 import InputError from '@/components/input-error';
@@ -7,12 +8,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export default function DepositForm() {
+    const idempotencyKey = useRef(crypto.randomUUID());
+
     return (
         <Form
             {...DepositController.form()}
+            transform={(data) => ({
+                ...data,
+                idempotency_key: idempotencyKey.current,
+            })}
             resetOnSuccess
             options={{ preserveScroll: true }}
-            onSuccess={() => toast.success('Depósito realizado com sucesso.')}
+            onSuccess={() => {
+                toast.success('Depósito realizado com sucesso.');
+                idempotencyKey.current = crypto.randomUUID();
+            }}
             className="space-y-4"
         >
             {({ processing, errors }) => (

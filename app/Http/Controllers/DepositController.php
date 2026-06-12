@@ -15,6 +15,7 @@ class DepositController extends Controller
             amount: $request->amountInCents(),
             description: $request->validated('description'),
             requestedBy: $request->user(),
+            idempotencyKey: $request->validated('idempotency_key'),
         );
 
         return back()->with('success', 'Depósito realizado com sucesso.');

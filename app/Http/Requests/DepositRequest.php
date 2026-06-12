@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\Money;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -20,6 +21,7 @@ class DepositRequest extends FormRequest
         return [
             'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:1000000'],
             'description' => ['nullable', 'string', 'max:255'],
+            'idempotency_key' => ['nullable', 'uuid'],
         ];
     }
 
@@ -39,6 +41,6 @@ class DepositRequest extends FormRequest
 
     public function amountInCents(): int
     {
-        return (int) round(((float) $this->validated('amount')) * 100);
+        return Money::toCents((string) $this->validated('amount'));
     }
 }
