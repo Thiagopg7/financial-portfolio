@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\Money;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -54,6 +55,6 @@ class TransferRequest extends FormRequest
 
     public function amountInCents(): int
     {
-        return (int) round(((float) $this->validated('amount')) * 100);
+        return Money::toCents((string) $this->validated('amount'));
     }
 }
