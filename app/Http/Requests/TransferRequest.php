@@ -25,7 +25,7 @@ class TransferRequest extends FormRequest
                 'email',
                 'exists:users,email',
                 function (string $attribute, mixed $value, Closure $fail): void {
-                    if ($value === $this->user()->email) {
+                    if (strcasecmp((string) $value, $this->user()->email) === 0) {
                         $fail('Você não pode transferir para si mesmo.');
                     }
                 },
@@ -47,6 +47,7 @@ class TransferRequest extends FormRequest
             'recipient_email.required' => 'Informe o e-mail do destinatário.',
             'recipient_email.email' => 'Informe um e-mail válido.',
             'recipient_email.exists' => 'Nenhum usuário encontrado com esse e-mail.',
+            'description.max' => 'O campo de descrição não deve ter mais de 255 caracteres.',
         ];
     }
 

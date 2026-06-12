@@ -33,6 +33,7 @@ class DepositRequest extends FormRequest
             'amount.numeric' => 'O valor deve ser um número.',
             'amount.decimal' => 'O valor pode ter no máximo duas casas decimais.',
             'amount.min' => 'O valor deve ser maior que zero.',
+            'description.max' => 'O campo de descrição não deve ter mais de 255 caracteres.',
         ];
     }
 

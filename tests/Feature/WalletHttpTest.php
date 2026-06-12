@@ -83,6 +83,17 @@ describe('transfer', function () {
             ])
             ->assertSessionHasErrors('recipient_email');
     });
+
+    it('impede transferir para si mesmo ignorando a capitalização do e-mail', function () {
+        $sender = Wallet::factory()->withBalance(5000)->create();
+
+        $this->actingAs($sender->user)
+            ->post(route('wallet.transfers.store'), [
+                'amount' => '20.00',
+                'recipient_email' => strtoupper($sender->user->email),
+            ])
+            ->assertSessionHasErrors('recipient_email');
+    });
 });
 
 describe('reversal', function () {
