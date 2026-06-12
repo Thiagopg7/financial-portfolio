@@ -257,9 +257,6 @@ class WalletService
         ]);
     }
 
-    /**
-     * Recupera a operação já registrada com a mesma chave de idempotência (por usuário).
-     */
     private function findByIdempotencyKey(string $idempotencyKey, ?int $requestedByUserId): ?Transaction
     {
         return Transaction::where('idempotency_key', $idempotencyKey)
@@ -267,12 +264,6 @@ class WalletService
             ->first();
     }
 
-    /**
-     * Em corrida com a mesma chave, a constraint única dispara violação: devolve a operação
-     * vencedora em vez de duplicar. Qualquer outra falha de banco é propagada.
-     *
-     * @throws QueryException
-     */
     private function resolveIdempotentReplay(QueryException $e, ?string $idempotencyKey, ?int $requestedByUserId): Transaction
     {
         if ($idempotencyKey !== null && (string) $e->getCode() === '23000') {
