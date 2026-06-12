@@ -23,7 +23,7 @@ class WalletController extends Controller
             'wallet' => [
                 'balance' => $wallet->balance,
             ],
-            'transactions' => TransactionResource::collection($transactions),
+            'transactions' => TransactionResource::collection($transactions)->resolve(),
         ]);
     }
 }

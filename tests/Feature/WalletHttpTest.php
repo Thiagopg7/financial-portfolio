@@ -130,7 +130,7 @@ describe('show', function () {
             ->get(route('wallet.show'))
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->component('wallet/index', shouldExist: false)
+                ->component('wallet/index')
                 ->where('wallet.balance', 5000)
                 ->has('transactions')
             );
