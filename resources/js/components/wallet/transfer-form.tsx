@@ -1,4 +1,5 @@
 import { Form } from '@inertiajs/react';
+import { useRef } from 'react';
 import { toast } from 'sonner';
 import TransferController from '@/actions/App/Http/Controllers/TransferController';
 import InputError from '@/components/input-error';
@@ -7,14 +8,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export default function TransferForm() {
+    const idempotencyKey = useRef(crypto.randomUUID());
+
     return (
         <Form
             {...TransferController.form()}
+            transform={(data) => ({
+                ...data,
+                idempotency_key: idempotencyKey.current,
+            })}
             resetOnSuccess
             options={{ preserveScroll: true }}
-            onSuccess={() =>
-                toast.success('Transferência realizada com sucesso.')
-            }
+            onSuccess={() => {
+                toast.success('Transferência realizada com sucesso.');
+                idempotencyKey.current = crypto.randomUUID();
+            }}
             className="space-y-4"
         >
             {({ processing, errors }) => (

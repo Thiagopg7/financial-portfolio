@@ -5,6 +5,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\WalletService;
+use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 
 describe('deposit', function () {
@@ -153,6 +154,25 @@ describe('show', function () {
         $this->actingAs($user)->get(route('wallet.show'))->assertOk();
 
         expect($user->wallet()->exists())->toBeTrue();
+    });
+});
+
+describe('idempotência', function () {
+    it('não duplica o depósito ao reenviar a mesma chave', function () {
+        $wallet = Wallet::factory()->withBalance(0)->create();
+        $key = (string) Str::uuid();
+
+        foreach (range(1, 2) as $ignored) {
+            $this->actingAs($wallet->user)
+                ->post(route('wallet.deposits.store'), [
+                    'amount' => '10.00',
+                    'idempotency_key' => $key,
+                ])
+                ->assertRedirect();
+        }
+
+        expect($wallet->fresh()->balance)->toBe(1000)
+            ->and(Transaction::count())->toBe(1);
     });
 });
 

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Services\WalletService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 beforeEach(function () {
     $this->service = app(WalletService::class);
@@ -139,6 +140,44 @@ describe('reverse', function () {
         $reversal = $this->service->reverse($deposit, $requester)->first();
 
         expect($reversal->requested_by_user_id)->toBe($requester->id);
+    });
+});
+
+describe('idempotência', function () {
+    it('não duplica depósito com a mesma chave', function () {
+        $wallet = Wallet::factory()->withBalance(0)->create();
+        $key = (string) Str::uuid();
+
+        $first = $this->service->deposit($wallet, 1000, requestedBy: $wallet->user, idempotencyKey: $key);
+        $second = $this->service->deposit($wallet, 1000, requestedBy: $wallet->user, idempotencyKey: $key);
+
+        expect($second->id)->toBe($first->id)
+            ->and($wallet->fresh()->balance)->toBe(1000)
+            ->and(Transaction::count())->toBe(1);
+    });
+
+    it('não duplica transferência com a mesma chave', function () {
+        $from = Wallet::factory()->withBalance(5000)->create();
+        $to = Wallet::factory()->withBalance(0)->create();
+        $key = (string) Str::uuid();
+
+        $first = $this->service->transfer($from, $to, 2000, requestedBy: $from->user, idempotencyKey: $key);
+        $second = $this->service->transfer($from, $to, 2000, requestedBy: $from->user, idempotencyKey: $key);
+
+        expect($second->id)->toBe($first->id)
+            ->and($from->fresh()->balance)->toBe(3000)
+            ->and($to->fresh()->balance)->toBe(2000)
+            ->and(Transaction::count())->toBe(2);
+    });
+
+    it('chaves diferentes geram operações distintas', function () {
+        $wallet = Wallet::factory()->withBalance(0)->create();
+
+        $this->service->deposit($wallet, 1000, requestedBy: $wallet->user, idempotencyKey: (string) Str::uuid());
+        $this->service->deposit($wallet, 1000, requestedBy: $wallet->user, idempotencyKey: (string) Str::uuid());
+
+        expect($wallet->fresh()->balance)->toBe(2000)
+            ->and(Transaction::count())->toBe(2);
     });
 });
 

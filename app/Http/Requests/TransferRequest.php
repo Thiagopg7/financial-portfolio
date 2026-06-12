@@ -31,6 +31,7 @@ class TransferRequest extends FormRequest
                 },
             ],
             'description' => ['nullable', 'string', 'max:255'],
+            'idempotency_key' => ['nullable', 'uuid'],
         ];
     }
 

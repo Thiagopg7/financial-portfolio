@@ -20,6 +20,7 @@ class DepositRequest extends FormRequest
         return [
             'amount' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:1000000'],
             'description' => ['nullable', 'string', 'max:255'],
+            'idempotency_key' => ['nullable', 'uuid'],
         ];
     }
 

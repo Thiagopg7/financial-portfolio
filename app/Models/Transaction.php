@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property int $amount
  * @property int $balance_after
  * @property string $reference
+ * @property string|null $idempotency_key
  * @property int|null $counterparty_wallet_id
  * @property int|null $reverses_transaction_id
  * @property int|null $requested_by_user_id
@@ -38,6 +39,7 @@ class Transaction extends Model
         'amount',
         'balance_after',
         'reference',
+        'idempotency_key',
         'counterparty_wallet_id',
         'reverses_transaction_id',
         'requested_by_user_id',
