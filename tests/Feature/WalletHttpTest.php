@@ -155,3 +155,19 @@ describe('show', function () {
         expect($user->wallet()->exists())->toBeTrue();
     });
 });
+
+describe('rate limiting', function () {
+    it('bloqueia depósitos acima do limite por minuto', function () {
+        $wallet = Wallet::factory()->withBalance(0)->create();
+
+        foreach (range(1, 20) as $ignored) {
+            $this->actingAs($wallet->user)
+                ->post(route('wallet.deposits.store'), ['amount' => '1.00'])
+                ->assertRedirect();
+        }
+
+        $this->actingAs($wallet->user)
+            ->post(route('wallet.deposits.store'), ['amount' => '1.00'])
+            ->assertStatus(429);
+    });
+});

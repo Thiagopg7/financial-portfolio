@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
@@ -23,7 +24,7 @@ class WalletService
     {
         $this->assertPositiveAmount($amount);
 
-        return DB::transaction(function () use ($wallet, $amount, $description, $requestedBy): Transaction {
+        $transaction = DB::transaction(function () use ($wallet, $amount, $description, $requestedBy): Transaction {
             $locked = $this->lockWallet($wallet->id);
             $balanceAfter = $locked->balance + $amount;
             $locked->update(['balance' => $balanceAfter]);
@@ -39,6 +40,16 @@ class WalletService
                 requestedByUserId: $requestedBy?->id,
             );
         });
+
+        Log::info('wallet.deposit', [
+            'wallet_id' => $transaction->wallet_id,
+            'amount_cents' => $amount,
+            'balance_after' => $transaction->balance_after,
+            'reference' => $transaction->reference,
+            'requested_by_user_id' => $requestedBy?->id,
+        ]);
+
+        return $transaction;
     }
 
     /**
@@ -54,7 +65,7 @@ class WalletService
             throw new InvalidArgumentException('Não é possível transferir para a própria carteira.');
         }
 
-        return DB::transaction(function () use ($from, $to, $amount, $description, $requestedBy): Transaction {
+        $debit = DB::transaction(function () use ($from, $to, $amount, $description, $requestedBy): Transaction {
             // Trava as duas carteiras em ordem de id para evitar deadlock entre transferências concorrentes.
             $wallets = $this->lockWallets([$from->id, $to->id]);
             $source = $wallets[$from->id];
@@ -96,6 +107,16 @@ class WalletService
 
             return $debit;
         });
+
+        Log::info('wallet.transfer', [
+            'from_wallet_id' => $from->id,
+            'to_wallet_id' => $to->id,
+            'amount_cents' => $amount,
+            'reference' => $debit->reference,
+            'requested_by_user_id' => $requestedBy?->id,
+        ]);
+
+        return $debit;
     }
 
     /**
@@ -107,7 +128,7 @@ class WalletService
      */
     public function reverse(Transaction $transaction, ?User $requestedBy = null, ?string $description = null): Collection
     {
-        return DB::transaction(function () use ($transaction, $requestedBy, $description): Collection {
+        $reversals = DB::transaction(function () use ($transaction, $requestedBy, $description): Collection {
             // Trava os lançamentos para impedir reversão dupla por requisições concorrentes.
             /** @var Collection<int, Transaction> $entries */
             $entries = Transaction::where('reference', $transaction->reference)
@@ -157,6 +178,15 @@ class WalletService
                 return $reversal;
             });
         });
+
+        Log::info('wallet.reversal', [
+            'original_reference' => $transaction->reference,
+            'reversal_reference' => $reversals->first()?->reference,
+            'entries' => $reversals->count(),
+            'requested_by_user_id' => $requestedBy?->id,
+        ]);
+
+        return $reversals;
     }
 
     private function lockWallet(int $walletId): Wallet

@@ -12,10 +12,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
 
     Route::get('wallet', [WalletController::class, 'show'])->name('wallet.show');
-    Route::post('wallet/deposits', DepositController::class)->name('wallet.deposits.store');
-    Route::post('wallet/transfers', TransferController::class)->name('wallet.transfers.store');
-    Route::post('transactions/{transaction}/reversals', TransactionReversalController::class)
-        ->name('transactions.reversals.store');
+
+    Route::middleware('throttle:20,1')->group(function () {
+        Route::post('wallet/deposits', DepositController::class)->name('wallet.deposits.store');
+        Route::post('wallet/transfers', TransferController::class)->name('wallet.transfers.store');
+        Route::post('transactions/{transaction}/reversals', TransactionReversalController::class)
+            ->name('transactions.reversals.store');
+    });
 });
 
 require __DIR__.'/settings.php';

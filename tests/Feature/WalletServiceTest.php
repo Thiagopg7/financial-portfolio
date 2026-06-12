@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\WalletService;
+use Illuminate\Support\Facades\Log;
 
 beforeEach(function () {
     $this->service = app(WalletService::class);
@@ -138,5 +139,21 @@ describe('reverse', function () {
         $reversal = $this->service->reverse($deposit, $requester)->first();
 
         expect($reversal->requested_by_user_id)->toBe($requester->id);
+    });
+});
+
+describe('observabilidade', function () {
+    it('emite log estruturado ao depositar', function () {
+        Log::spy();
+        $wallet = Wallet::factory()->withBalance(0)->create();
+
+        $transaction = $this->service->deposit($wallet, 1500, requestedBy: $wallet->user);
+
+        Log::shouldHaveReceived('info')
+            ->withArgs(fn (string $message, array $context): bool => $message === 'wallet.deposit'
+                && $context['amount_cents'] === 1500
+                && $context['reference'] === $transaction->reference
+                && $context['requested_by_user_id'] === $wallet->user->id)
+            ->once();
     });
 });
