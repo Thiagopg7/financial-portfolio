@@ -72,8 +72,11 @@
             "npm run types:check",
             "@test"
         ],
+        "analyse": [
+            "phpstan analyse --memory-limit=512M"
+        ],
         "types:check": [
-            "phpstan analyse"
+            "@analyse"
         ],
         "test": [
             "@php artisan config:clear --ansi",

@@ -1,0 +1,6 @@
+# Ajuste a porta do host conforme o que estiver livre na máquina.
+
+services:
+  db:
+    ports:
+      - "3306:3306"

@@ -56,4 +56,9 @@ class User extends Authenticatable implements PasskeyUser
     {
         return $this->hasOne(Wallet::class);
     }
+
+    public function ensureWallet(): Wallet
+    {
+        return $this->wallet()->firstOrCreate([]);
+    }
 }
