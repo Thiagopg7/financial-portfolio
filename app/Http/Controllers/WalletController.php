@@ -16,6 +16,7 @@ class WalletController extends Controller
         $transactions = $wallet->transactions()
             ->with('counterpartyWallet.user')
             ->latest()
+            ->latest('id')
             ->limit(50)
             ->get();
 

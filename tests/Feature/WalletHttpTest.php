@@ -148,6 +148,28 @@ describe('show', function () {
             );
     });
 
+    it('serializa os lançamentos do extrato com os campos formatados', function () {
+        $service = app(WalletService::class);
+        $wallet = Wallet::factory()->withBalance(0)->create();
+        $recipient = Wallet::factory()->withBalance(0)->create();
+
+        $service->deposit($wallet, 5000);
+        $service->transfer($wallet, $recipient, 2000);
+
+        $this->actingAs($wallet->user)
+            ->get(route('wallet.show'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->has('transactions', 2)
+                ->where('transactions.0.type', 'transfer')
+                ->where('transactions.0.direction', 'debit')
+                ->where('transactions.0.amount', 2000)
+                ->where('transactions.0.counterparty', $recipient->user->name)
+                ->where('transactions.0.is_reversed', false)
+                ->where('transactions.0.can_reverse', true)
+            );
+    });
+
     it('cria a carteira ao acessar caso o usuário ainda não tenha', function () {
         $user = User::factory()->create();
 
