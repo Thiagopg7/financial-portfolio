@@ -35,6 +35,12 @@ jobs:
           composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
           npm install
 
+      - name: Audit PHP Dependencies
+        run: composer audit
+
+      - name: Audit Node Dependencies
+        run: npm audit --audit-level=high
+
       - name: Copy Environment File
         run: cp .env.example .env
 
