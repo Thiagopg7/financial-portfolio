@@ -1,14 +1,16 @@
 import { Form } from '@inertiajs/react';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import TransferController from '@/actions/App/Http/Controllers/TransferController';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import CurrencyInput from '@/components/wallet/currency-input';
 
 export default function TransferForm() {
     const idempotencyKey = useRef(crypto.randomUUID());
+    const [formKey, setFormKey] = useState(0);
 
     return (
         <Form
@@ -22,6 +24,7 @@ export default function TransferForm() {
             onSuccess={() => {
                 toast.success('Transferência realizada com sucesso.');
                 idempotencyKey.current = crypto.randomUUID();
+                setFormKey((key) => key + 1);
             }}
             className="space-y-4"
         >
@@ -43,13 +46,10 @@ export default function TransferForm() {
 
                     <div className="grid gap-2">
                         <Label htmlFor="transfer-amount">Valor (R$)</Label>
-                        <Input
+                        <CurrencyInput
+                            key={formKey}
                             id="transfer-amount"
                             name="amount"
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            placeholder="0.00"
                             required
                         />
                         <InputError message={errors.amount} />
