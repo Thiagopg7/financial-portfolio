@@ -1,14 +1,16 @@
 import { Form } from '@inertiajs/react';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import DepositController from '@/actions/App/Http/Controllers/DepositController';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import CurrencyInput from '@/components/wallet/currency-input';
 
 export default function DepositForm() {
     const idempotencyKey = useRef(crypto.randomUUID());
+    const [formKey, setFormKey] = useState(0);
 
     return (
         <Form
@@ -22,6 +24,7 @@ export default function DepositForm() {
             onSuccess={() => {
                 toast.success('Depósito realizado com sucesso.');
                 idempotencyKey.current = crypto.randomUUID();
+                setFormKey((key) => key + 1);
             }}
             className="space-y-4"
         >
@@ -29,13 +32,10 @@ export default function DepositForm() {
                 <>
                     <div className="grid gap-2">
                         <Label htmlFor="deposit-amount">Valor (R$)</Label>
-                        <Input
+                        <CurrencyInput
+                            key={formKey}
                             id="deposit-amount"
                             name="amount"
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            placeholder="0.00"
                             required
                         />
                         <InputError message={errors.amount} />
