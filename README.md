@@ -1,7 +1,94 @@
 # Financial Portfolio
 
-Aplicação Laravel 13 + Inertia + React 19, com ambiente de desenvolvimento em Docker
-(Nginx + PHP-FPM 8.5 + MySQL 8.4 + Vite).
+Carteira financeira. Usuários podem **depositar, transferir e receber**
+dinheiro, com **validação de saldo** e **reversão** de operações. Construída em Laravel 13 +
+Inertia v3 + React 19, com ambiente de desenvolvimento em Docker (Nginx + PHP-FPM 8.5 +
+MySQL 8.4 + Vite).
+
+## Arquitetura
+
+### Camadas (fluxo de uma requisição)
+
+```
+Rota → Form Request (validação) → Controller (orquestra) → WalletService (regras de negócio)
+     → Eloquent (persistência) → Resource (formato de saída)
+```
+
+- **Controllers**: apenas orquestram. As regras vivem no `WalletService`.
+- **`WalletService`** concentra as três operações (`deposit`, `transfer`, `reverse`), sempre
+  dentro de `DB::transaction` com `lockForUpdate` (lock pessimista).
+- **Sem Repository**: o Eloquent (Active Record) já é a camada de dados; uma abstração por
+  cima seria indireção redundante para um único ORM.
+- **Autorização por Policy nativa** (`TransactionPolicy`): cada usuário só age sobre as
+  próprias operações.
+
+### Modelo de dados
+
+| Tabela | Papel |
+|--------|-------|
+| `wallets` | 1:1 com `users`. `balance` em **centavos** (inteiro), atualizado sob lock. |
+| `transactions` | **Ledger imutável** — fonte de verdade e trilha de auditoria. |
+
+Colunas-chave de `transactions`: `type` (deposit/transfer/reversal), `direction`
+(credit/debit), `amount` (centavos), `balance_after`, `reference` (ULID que agrupa os
+lançamentos de uma operação), `counterparty_wallet_id`, `reverses_transaction_id`,
+`requested_by_user_id`, `idempotency_key`, `reversed_at`.
+
+- **Saldo materializado** na `wallet` (coluna `balance`), recalculado dentro da transação de
+  banco. O ledger é o histórico; o saldo é o agregado para leitura rápida. Invariante testada:
+  `balance` = soma do ledger.
+- **Transferência** = 2 lançamentos (débito na origem + crédito no destino) com a mesma
+  `reference` (correlation id).
+- **Reversão** = lançamentos de **estorno** (inversos), nunca `delete`. O ledger permanece
+  imutável.
+
+### Regras de negócio
+
+- **Depósito** sempre soma ao saldo, **mesmo se negativo** (abate dívida).
+- **Transferência** valida saldo antes (`InsufficientBalanceException`), é atômica e não
+  permite transferir para si mesmo. Destinatário identificado por **e-mail**.
+- **Reversão** pode ser solicitada por **qualquer participante** da operação; registra quem
+  solicitou; não reverte duas vezes nem reverte um estorno.
+
+### Decisões e trade-offs (o porquê)
+
+- **Valores em centavos** (inteiro), nunca float/decimal — elimina erro de arredondamento.
+  A conversão reais→centavos acontece só na borda (`App\Support\Money::toCents`, testado
+  isoladamente).
+- **`reference` (correlation id)** em vez de "id do lançamento oposto": evita o problema
+  ovo-galinha na criação, funciona para depósito (que não tem oposto) e escala para operações
+  com mais de 2 lançamentos.
+- **Lock pessimista ordenado por id** (`lockForUpdate`): garante consistência do saldo sob
+  concorrência e evita deadlock.
+- **Idempotência** em depósito/transferência: chave UUID (gerada no front, por operação) +
+  constraint `UNIQUE(requested_by_user_id, idempotency_key)`. Pré-check pega o retry
+  sequencial; a constraint pega a corrida. Evita operação duplicada por duplo-clique/retry.
+  A reversão dispensa chave — é idempotente por natureza (estado terminal `reversed_at` + lock).
+
+### Segurança e observabilidade
+
+- **Rate limiting** (`throttle:20,1` por usuário) nas rotas financeiras.
+- **Logging estruturado** das operações (`wallet.deposit`/`transfer`/`reversal`) com contexto,
+  registrado **após o commit** (nunca loga uma operação revertida por rollback).
+- **Health check** em `/up` (nativo do Laravel).
+
+### Endpoints
+
+| Método | Rota | Ação |
+|--------|------|------|
+| `GET`  | `/wallet` | Saldo + extrato (`WalletController@show`) |
+| `POST` | `/wallet/deposits` | Depósito (`DepositController`) |
+| `POST` | `/wallet/transfers` | Transferência (`TransferController`) |
+| `POST` | `/transactions/{transaction}/reversals` | Reversão (`TransactionReversalController`) |
+
+### Testes
+
+Suíte em **Pest 4** (unitários + integração), com análise estática **Larastan** e formatação
+**Pint** verificadas no CI. Rodar:
+
+```bash
+docker compose exec app php artisan test --compact
+```
 
 ## Requisitos
 

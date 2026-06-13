@@ -29,6 +29,14 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         gd \
         pcntl
 
+# pcov: driver de cobertura de testes (leve, só para esse fim). As build deps são
+# temporárias: instaladas para compilar a extensão e removidas em seguida.
+RUN apt-get update && apt-get install -y --no-install-recommends $PHPIZE_DEPS \
+    && pecl install pcov \
+    && docker-php-ext-enable pcov \
+    && apt-get purge -y --auto-remove $PHPIZE_DEPS \
+    && rm -rf /var/lib/apt/lists/*
+
 # Node precisa estar nesta imagem porque o Vite (plugin Wayfinder) executa
 # `php artisan wayfinder:generate` ao iniciar e depende do binário PHP. Copiamos
 # de uma imagem oficial (mesma distro) em vez de baixar/executar script remoto.
