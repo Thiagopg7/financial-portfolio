@@ -35,7 +35,7 @@ jobs:
         with:
           php-version: ${{ matrix.php-version }}
           tools: composer:v2
-          coverage: xdebug
+          coverage: pcov
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
@@ -61,4 +61,4 @@ jobs:
         run: composer types:check
 
       - name: Tests
-        run: php artisan test
+        run: php artisan test --coverage --min=85
