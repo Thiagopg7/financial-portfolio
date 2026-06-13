@@ -167,6 +167,9 @@ class WalletService
             $wallets = $this->lockWallets($entries->pluck('wallet_id')->all());
             $reference = (string) Str::ulid();
 
+            // Estorno contábil: aplica o inverso de cada lançamento mesmo que o saldo
+            // fique negativo (ex.: o destinatário já gastou o valor recebido). É a
+            // semântica de chargeback — a operação sempre pode ser desfeita.
             return $entries->map(function (Transaction $entry) use ($wallets, $reference, $requestedBy, $description): Transaction {
                 $wallet = $wallets[$entry->wallet_id];
                 $inverseDirection = $entry->direction === TransactionDirection::Credit
