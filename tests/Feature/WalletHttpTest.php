@@ -122,6 +122,46 @@ describe('reversal', function () {
             ->assertForbidden();
     });
 
+    it('permite o remetente reverter uma transferência', function () {
+        $sender = Wallet::factory()->withBalance(5000)->create();
+        $recipient = Wallet::factory()->withBalance(0)->create();
+        $debit = app(WalletService::class)->transfer($sender, $recipient, 2000);
+
+        $this->actingAs($sender->user)
+            ->post(route('transactions.reversals.store', $debit))
+            ->assertSessionHas('success');
+
+        expect($sender->fresh()->balance)->toBe(5000)
+            ->and($recipient->fresh()->balance)->toBe(0);
+    });
+
+    it('permite o destinatário reverter uma transferência', function () {
+        $sender = Wallet::factory()->withBalance(5000)->create();
+        $recipient = Wallet::factory()->withBalance(0)->create();
+        $debit = app(WalletService::class)->transfer($sender, $recipient, 2000);
+        $credit = Transaction::where('reference', $debit->reference)
+            ->where('wallet_id', $recipient->id)
+            ->firstOrFail();
+
+        $this->actingAs($recipient->user)
+            ->post(route('transactions.reversals.store', $credit))
+            ->assertSessionHas('success');
+
+        expect($sender->fresh()->balance)->toBe(5000)
+            ->and($recipient->fresh()->balance)->toBe(0);
+    });
+
+    it('impede um não-participante de reverter uma transferência', function () {
+        $sender = Wallet::factory()->withBalance(5000)->create();
+        $recipient = Wallet::factory()->withBalance(0)->create();
+        $stranger = Wallet::factory()->create();
+        $debit = app(WalletService::class)->transfer($sender, $recipient, 2000);
+
+        $this->actingAs($stranger->user)
+            ->post(route('transactions.reversals.store', $debit))
+            ->assertForbidden();
+    });
+
     it('rejeita reverter operação já revertida', function () {
         $wallet = Wallet::factory()->withBalance(0)->create();
         $service = app(WalletService::class);

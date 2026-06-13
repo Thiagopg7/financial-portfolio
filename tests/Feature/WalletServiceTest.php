@@ -114,6 +114,21 @@ describe('reverse', function () {
             ->and($reversals)->toHaveCount(2);
     });
 
+    it('deixa o destinatário negativo ao estornar um valor já gasto (chargeback)', function () {
+        $from = Wallet::factory()->withBalance(5000)->create();
+        $to = Wallet::factory()->withBalance(0)->create();
+        $other = Wallet::factory()->withBalance(0)->create();
+
+        $transfer = $this->service->transfer($from, $to, 2000);
+        $this->service->transfer($to, $other, 2000);
+        expect($to->fresh()->balance)->toBe(0);
+
+        $this->service->reverse($transfer);
+
+        expect($to->fresh()->balance)->toBe(-2000)
+            ->and($from->fresh()->balance)->toBe(5000);
+    });
+
     it('não permite reverter uma operação já revertida', function () {
         $wallet = Wallet::factory()->withBalance(0)->create();
         $deposit = $this->service->deposit($wallet, 3000);
