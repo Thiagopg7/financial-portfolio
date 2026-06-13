@@ -5,6 +5,16 @@ dinheiro, com **validação de saldo** e **reversão** de operações. Construí
 Inertia v3 + React 19, com ambiente de desenvolvimento em Docker (Nginx + PHP-FPM 8.5 +
 MySQL 8.4 + Vite).
 
+## Telas
+
+Carteira — saldo, depósito, transferência e extrato:
+
+![Tela da carteira](.github/screenshots/wallet-overview.png)
+
+Reversão de uma operação (estorno com confirmação):
+
+![Diálogo de reversão](.github/screenshots/transaction-reversal.png)
+
 ## Arquitetura
 
 ### Camadas (fluxo de uma requisição)
@@ -116,15 +126,31 @@ echo "GID=$(id -g)" >> .env
 # 5. Subir os containers (a primeira vez compila a imagem e instala dependências)
 docker compose up -d --build
 
-# 6. Gerar a APP_KEY e rodar as migrations
+# 6. Gerar a APP_KEY e rodar as migrations (com dados de demonstração)
 docker compose exec app php artisan key:generate
-docker compose exec app php artisan migrate
+docker compose exec app php artisan migrate --seed
 ```
 
 Acesse **http://localhost:8000**.
 
 > O Vite (assets/HMR) sobe junto no container `node` e leva alguns segundos para
 > ficar pronto na primeira vez. Acompanhe com `docker compose logs -f node`.
+
+## Credenciais de demonstração
+
+O `--seed` cria três usuários já com saldo e um histórico de exemplo (depósitos,
+transferências e um estorno), para testar a carteira de imediato. A senha de todos é
+`password`.
+
+| Nome | E-mail | Saldo inicial |
+|------|--------|---------------|
+| Ana Souza | `ana@example.com` | R$ 750,00 |
+| Bruno Lima | `bruno@example.com` | R$ 650,00 |
+| Carla Dias | `carla@example.com` | R$ 400,00 |
+
+Para testar uma **transferência**, entre como Ana e envie um valor para `bruno@example.com`.
+Para testar um **estorno**, abra o extrato e use o botão de reverter em um lançamento. Para
+recriar os dados do zero: `docker compose exec app php artisan migrate:fresh --seed`.
 
 ## Serviços
 
