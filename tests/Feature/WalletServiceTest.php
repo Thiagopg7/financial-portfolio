@@ -210,4 +210,77 @@ describe('observabilidade', function () {
                 && $context['requested_by_user_id'] === $wallet->user->id)
             ->once();
     });
+
+    it('registra warning ao depositar valor inválido', function () {
+        Log::spy();
+        $wallet = Wallet::factory()->create();
+
+        expect(fn () => $this->service->deposit($wallet, 0))
+            ->toThrow(InvalidArgumentException::class);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context): bool => $message === 'wallet.deposit.failed'
+                && $context['reason'] === 'invalid_amount')
+            ->once();
+    });
+
+    it('registra warning ao transferir sem saldo', function () {
+        Log::spy();
+        $from = Wallet::factory()->withBalance(1000)->create();
+        $to = Wallet::factory()->withBalance(0)->create();
+
+        expect(fn () => $this->service->transfer($from, $to, 2000))
+            ->toThrow(InsufficientBalanceException::class);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context): bool => $message === 'wallet.transfer.failed'
+                && $context['reason'] === 'insufficient_balance'
+                && $context['from_wallet_id'] === $from->id)
+            ->once();
+    });
+
+    it('registra warning ao transferir para a própria carteira', function () {
+        Log::spy();
+        $wallet = Wallet::factory()->withBalance(5000)->create();
+
+        expect(fn () => $this->service->transfer($wallet, $wallet, 1000))
+            ->toThrow(InvalidArgumentException::class);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context): bool => $message === 'wallet.transfer.failed'
+                && $context['reason'] === 'same_wallet')
+            ->once();
+    });
+
+    it('registra warning ao reverter operação já revertida', function () {
+        $wallet = Wallet::factory()->withBalance(0)->create();
+        $deposit = $this->service->deposit($wallet, 3000);
+        $this->service->reverse($deposit);
+
+        Log::spy();
+
+        expect(fn () => $this->service->reverse($deposit->fresh()))
+            ->toThrow(TransactionAlreadyReversedException::class);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context): bool => $message === 'wallet.reversal.failed'
+                && $context['reason'] === 'already_reversed')
+            ->once();
+    });
+
+    it('registra warning ao tentar reverter um estorno', function () {
+        $wallet = Wallet::factory()->withBalance(0)->create();
+        $deposit = $this->service->deposit($wallet, 3000);
+        $reversal = $this->service->reverse($deposit)->first();
+
+        Log::spy();
+
+        expect(fn () => $this->service->reverse($reversal))
+            ->toThrow(InvalidArgumentException::class);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context): bool => $message === 'wallet.reversal.failed'
+                && $context['reason'] === 'reversal_of_reversal')
+            ->once();
+    });
 });

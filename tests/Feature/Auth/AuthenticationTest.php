@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Laravel\Fortify\Features;
 
@@ -53,6 +54,22 @@ test('users can not authenticate with invalid password', function () {
     $this->assertGuest();
 });
 
+test('failed login attempts are logged', function () {
+    $user = User::factory()->create();
+
+    Log::spy();
+
+    $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'wrong-password',
+    ]);
+
+    Log::shouldHaveReceived('warning')
+        ->withArgs(fn (string $message, array $context): bool => $message === 'auth.login.failed'
+            && $context['email'] === $user->email)
+        ->once();
+});
+
 test('users can logout', function () {
     $user = User::factory()->create();
 
@@ -74,4 +91,22 @@ test('users are rate limited', function () {
     ]);
 
     $response->assertTooManyRequests();
+});
+
+test('lockout is logged when login is throttled', function () {
+    $user = User::factory()->create();
+
+    RateLimiter::increment(md5('login'.implode('|', [$user->email, '127.0.0.1'])), amount: 5);
+
+    Log::spy();
+
+    $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'wrong-password',
+    ])->assertTooManyRequests();
+
+    Log::shouldHaveReceived('warning')
+        ->withArgs(fn (string $message, array $context): bool => $message === 'auth.login.lockout'
+            && $context['email'] === $user->email)
+        ->once();
 });

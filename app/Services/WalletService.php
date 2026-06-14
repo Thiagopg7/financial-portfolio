@@ -18,12 +18,18 @@ use InvalidArgumentException;
 
 class WalletService
 {
-    /**
-     * Deposita um valor na carteira. Soma ao saldo mesmo que ele esteja negativo.
-     */
     public function deposit(Wallet $wallet, int $amount, ?string $description = null, ?User $requestedBy = null, ?string $idempotencyKey = null): Transaction
     {
-        $this->assertPositiveAmount($amount);
+        if ($amount <= 0) {
+            Log::warning('wallet.deposit.failed', [
+                'reason' => 'invalid_amount',
+                'wallet_id' => $wallet->id,
+                'amount_cents' => $amount,
+                'requested_by_user_id' => $requestedBy?->id,
+            ]);
+
+            throw new InvalidArgumentException('O valor deve ser maior que zero.');
+        }
 
         if ($idempotencyKey !== null && $replay = $this->findByIdempotencyKey($idempotencyKey, $requestedBy?->id)) {
             return $replay;
@@ -63,15 +69,31 @@ class WalletService
     }
 
     /**
-     * Transfere um valor entre duas carteiras, validando o saldo da origem.
-     *
      * @throws InsufficientBalanceException
      */
     public function transfer(Wallet $from, Wallet $to, int $amount, ?string $description = null, ?User $requestedBy = null, ?string $idempotencyKey = null): Transaction
     {
-        $this->assertPositiveAmount($amount);
+        if ($amount <= 0) {
+            Log::warning('wallet.transfer.failed', [
+                'reason' => 'invalid_amount',
+                'from_wallet_id' => $from->id,
+                'to_wallet_id' => $to->id,
+                'amount_cents' => $amount,
+                'requested_by_user_id' => $requestedBy?->id,
+            ]);
+
+            throw new InvalidArgumentException('O valor deve ser maior que zero.');
+        }
 
         if ($from->is($to)) {
+            Log::warning('wallet.transfer.failed', [
+                'reason' => 'same_wallet',
+                'from_wallet_id' => $from->id,
+                'to_wallet_id' => $to->id,
+                'amount_cents' => $amount,
+                'requested_by_user_id' => $requestedBy?->id,
+            ]);
+
             throw new InvalidArgumentException('Não é possível transferir para a própria carteira.');
         }
 
@@ -81,7 +103,6 @@ class WalletService
 
         try {
             $debit = DB::transaction(function () use ($from, $to, $amount, $description, $requestedBy, $idempotencyKey): Transaction {
-                // Trava as duas carteiras em ordem de id para evitar deadlock entre transferências concorrentes.
                 $wallets = $this->lockWallets([$from->id, $to->id]);
                 $source = $wallets[$from->id];
                 $target = $wallets[$to->id];
@@ -123,6 +144,16 @@ class WalletService
 
                 return $debit;
             });
+        } catch (InsufficientBalanceException $e) {
+            Log::warning('wallet.transfer.failed', [
+                'reason' => 'insufficient_balance',
+                'from_wallet_id' => $from->id,
+                'to_wallet_id' => $to->id,
+                'amount_cents' => $amount,
+                'requested_by_user_id' => $requestedBy?->id,
+            ]);
+
+            throw $e;
         } catch (QueryException $e) {
             return $this->resolveIdempotentReplay($e, $idempotencyKey, $requestedBy?->id);
         }
@@ -139,67 +170,79 @@ class WalletService
     }
 
     /**
-     * Reverte a operação inteira (todos os lançamentos da mesma reference) via estorno.
-     *
      * @return Collection<int, Transaction>
      *
      * @throws TransactionAlreadyReversedException
      */
     public function reverse(Transaction $transaction, ?User $requestedBy = null, ?string $description = null): Collection
     {
-        $reversals = DB::transaction(function () use ($transaction, $requestedBy, $description): Collection {
-            // Trava os lançamentos para impedir reversão dupla por requisições concorrentes.
-            /** @var Collection<int, Transaction> $entries */
-            $entries = Transaction::where('reference', $transaction->reference)
-                ->lockForUpdate()
-                ->get();
+        try {
+            $reversals = DB::transaction(function () use ($transaction, $requestedBy, $description): Collection {
+                $entries = Transaction::where('reference', $transaction->reference)
+                    ->lockForUpdate()
+                    ->get();
 
-            foreach ($entries as $entry) {
-                if ($entry->type === TransactionType::Reversal) {
-                    throw new InvalidArgumentException('Um estorno não pode ser revertido.');
+                foreach ($entries as $entry) {
+                    if ($entry->type === TransactionType::Reversal) {
+                        throw new InvalidArgumentException('Um estorno não pode ser revertido.');
+                    }
+
+                    if ($entry->isReversed()) {
+                        throw new TransactionAlreadyReversedException;
+                    }
                 }
 
-                if ($entry->isReversed()) {
-                    throw new TransactionAlreadyReversedException;
-                }
-            }
+                $wallets = $this->lockWallets($entries->pluck('wallet_id')->all());
+                $reference = (string) Str::ulid();
 
-            $wallets = $this->lockWallets($entries->pluck('wallet_id')->all());
-            $reference = (string) Str::ulid();
+                // inverso de cada lançamento
+                return $entries->map(function (Transaction $entry) use ($wallets, $reference, $requestedBy, $description): Transaction {
+                    $wallet = $wallets[$entry->wallet_id];
+                    $inverseDirection = $entry->direction === TransactionDirection::Credit
+                        ? TransactionDirection::Debit
+                        : TransactionDirection::Credit;
 
-            // Estorno contábil: aplica o inverso de cada lançamento mesmo que o saldo
-            // fique negativo (ex.: o destinatário já gastou o valor recebido). É a
-            // semântica de chargeback — a operação sempre pode ser desfeita.
-            return $entries->map(function (Transaction $entry) use ($wallets, $reference, $requestedBy, $description): Transaction {
-                $wallet = $wallets[$entry->wallet_id];
-                $inverseDirection = $entry->direction === TransactionDirection::Credit
-                    ? TransactionDirection::Debit
-                    : TransactionDirection::Credit;
+                    $balanceAfter = $inverseDirection === TransactionDirection::Credit
+                        ? $wallet->balance + $entry->amount
+                        : $wallet->balance - $entry->amount;
 
-                $balanceAfter = $inverseDirection === TransactionDirection::Credit
-                    ? $wallet->balance + $entry->amount
-                    : $wallet->balance - $entry->amount;
+                    $wallet->update(['balance' => $balanceAfter]);
 
-                $wallet->update(['balance' => $balanceAfter]);
+                    $reversal = $this->recordEntry(
+                        wallet: $wallet,
+                        type: TransactionType::Reversal,
+                        direction: $inverseDirection,
+                        amount: $entry->amount,
+                        balanceAfter: $balanceAfter,
+                        reference: $reference,
+                        counterpartyWalletId: $entry->counterparty_wallet_id,
+                        reversesTransactionId: $entry->id,
+                        description: $description,
+                        requestedByUserId: $requestedBy?->id,
+                    );
 
-                $reversal = $this->recordEntry(
-                    wallet: $wallet,
-                    type: TransactionType::Reversal,
-                    direction: $inverseDirection,
-                    amount: $entry->amount,
-                    balanceAfter: $balanceAfter,
-                    reference: $reference,
-                    counterpartyWalletId: $entry->counterparty_wallet_id,
-                    reversesTransactionId: $entry->id,
-                    description: $description,
-                    requestedByUserId: $requestedBy?->id,
-                );
+                    $entry->update(['reversed_at' => now()]);
 
-                $entry->update(['reversed_at' => now()]);
-
-                return $reversal;
+                    return $reversal;
+                });
             });
-        });
+        } catch (TransactionAlreadyReversedException $e) {
+            Log::warning('wallet.reversal.failed', [
+                'reason' => 'already_reversed',
+                'reference' => $transaction->reference,
+                'requested_by_user_id' => $requestedBy?->id,
+            ]);
+
+            throw $e;
+        } catch (InvalidArgumentException $e) {
+            Log::warning('wallet.reversal.failed', [
+                'reason' => 'reversal_of_reversal',
+                'reference' => $transaction->reference,
+                'requested_by_user_id' => $requestedBy?->id,
+            ]);
+
+            throw $e;
+        }
 
         Log::info('wallet.reversal', [
             'original_reference' => $transaction->reference,
@@ -217,8 +260,6 @@ class WalletService
     }
 
     /**
-     * Trava várias carteiras em ordem crescente de id (previne deadlock).
-     *
      * @param  array<int, int>  $walletIds
      * @return Collection<int, Wallet> indexada por id
      */
@@ -278,12 +319,5 @@ class WalletService
         }
 
         throw $e;
-    }
-
-    private function assertPositiveAmount(int $amount): void
-    {
-        if ($amount <= 0) {
-            throw new InvalidArgumentException('O valor deve ser maior que zero.');
-        }
     }
 }

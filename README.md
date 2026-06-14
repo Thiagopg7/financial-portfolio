@@ -77,10 +77,22 @@ lançamentos de uma operação), `counterparty_wallet_id`, `reverses_transaction
 
 ### Segurança e observabilidade
 
-- **Rate limiting** (`throttle:20,1` por usuário) nas rotas financeiras.
-- **Logging estruturado** das operações (`wallet.deposit`/`transfer`/`reversal`) com contexto,
-  registrado **após o commit** (nunca loga uma operação revertida por rollback).
+- **Rate limiting** (`throttle:20,1` por usuário) nas rotas financeiras e `5/min` no login.
+- **Trilha de auditoria imutável**: a tabela `transactions` é um ledger _append-only_ — nada é
+  editado nem apagado, e uma reversão é um novo lançamento inverso. O histórico financeiro é
+  sempre reconstruível.
+- **Logging estruturado das operações** (`wallet.deposit`/`transfer`/`reversal`, nível `info`)
+  com contexto, registrado **após o commit** (nunca loga uma operação desfeita por rollback).
+- **Logging das falhas e eventos de risco** (nível `warning`), o que mais interessa para
+  detecção: tentativas barradas de operação (`wallet.*.failed` com o motivo — saldo
+  insuficiente, valor inválido, reversão dupla etc.), reversão não autorizada
+  (`wallet.reversal.unauthorized`), login com senha errada (`auth.login.failed`) e bloqueio por
+  throttle (`auth.login.lockout`).
 - **Health check** em `/up` (nativo do Laravel).
+
+> Os logs vão para `storage/logs/laravel.log` (canal `stack`). Em produção, a evolução natural é
+> apontar o canal para `stderr` e agregar num coletor externo (Loki, CloudWatch, Sentry) — basta
+> trocar `LOG_CHANNEL`/`LOG_STACK` no ambiente, sem mudança de código.
 
 ### Endpoints
 
