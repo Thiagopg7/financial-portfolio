@@ -49,6 +49,10 @@ services:
       - app
 
   # Vite/HMR. Usa a imagem do app porque o plugin Wayfinder precisa do PHP.
+  # restart: na primeira subida o Vite roda `php artisan wayfinder:generate`, que
+  # falha enquanto o vendor/ não existe (composer install ainda não rodou). Com
+  # `unless-stopped` o container se recupera sozinho assim que as dependências
+  # PHP aparecem, sem exigir um restart manual.
   node:
     build:
       context: .
@@ -62,6 +66,7 @@ services:
     ports:
       - "5173:5173"
     command: sh -c "npm install && npm run dev"
+    restart: unless-stopped
     networks:
       - app
 

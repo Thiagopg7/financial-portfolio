@@ -135,15 +135,25 @@ sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=secret/' .env
 echo "UID=$(id -u)" >> .env
 echo "GID=$(id -g)" >> .env
 
-# 5. Subir os containers (a primeira vez compila a imagem e instala dependências)
+# 5. Subir os containers (a primeira vez compila a imagem; o serviço node já
+#    instala as dependências de front-end com `npm install`)
 docker compose up -d --build
 
-# 6. Gerar a APP_KEY e rodar as migrations (com dados de demonstração)
+# 6. Instalar as dependências PHP (gera a pasta vendor/)
+docker compose exec app composer install
+
+# 7. Gerar a APP_KEY e rodar as migrations (com dados de demonstração)
 docker compose exec app php artisan key:generate
 docker compose exec app php artisan migrate --seed
 ```
 
 Acesse **http://localhost:8000**.
+
+> Na primeira subida o container `node` arranca em paralelo com o `app`, antes do
+> `composer install` do passo 6. Como o Vite roda `php artisan wayfinder:generate`
+> ao iniciar e isso exige a pasta `vendor/`, ele falha nessa primeira tentativa —
+> mas o serviço tem `restart: unless-stopped` e se recupera sozinho assim que as
+> dependências PHP existem. Não é preciso reiniciá-lo manualmente.
 
 > O Vite (assets/HMR) sobe junto no container `node` e leva alguns segundos para
 > ficar pronto na primeira vez. Acompanhe com `docker compose logs -f node`.
