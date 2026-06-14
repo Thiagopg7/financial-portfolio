@@ -5,7 +5,7 @@ dinheiro, com **validação de saldo** e **reversão** de operações. Construí
 Inertia v3 + React 19, com ambiente de desenvolvimento em Docker (Nginx + PHP-FPM 8.5 +
 MySQL 8.4 + Vite).
 
-> **Só quer rodar?** Vá direto para [Subindo o projeto](#subindo-o-projeto).
+> **[Subindo o projeto](#subindo-o-projeto).**
 
 ## Telas
 
