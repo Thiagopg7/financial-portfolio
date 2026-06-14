@@ -5,6 +5,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\WalletService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 
@@ -120,6 +121,24 @@ describe('reversal', function () {
         $this->actingAs($stranger->user)
             ->post(route('transactions.reversals.store', $deposit))
             ->assertForbidden();
+    });
+
+    it('registra warning ao barrar reversão não autorizada', function () {
+        $wallet = Wallet::factory()->withBalance(0)->create();
+        $deposit = app(WalletService::class)->deposit($wallet, 3000);
+        $stranger = Wallet::factory()->create();
+
+        Log::spy();
+
+        $this->actingAs($stranger->user)
+            ->post(route('transactions.reversals.store', $deposit))
+            ->assertForbidden();
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context): bool => $message === 'wallet.reversal.unauthorized'
+                && $context['transaction_id'] === $deposit->id
+                && $context['user_id'] === $stranger->user->id)
+            ->once();
     });
 
     it('permite o remetente reverter uma transferência', function () {
