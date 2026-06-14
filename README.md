@@ -5,6 +5,8 @@ dinheiro, com **validação de saldo** e **reversão** de operações. Construí
 Inertia v3 + React 19, com ambiente de desenvolvimento em Docker (Nginx + PHP-FPM 8.5 +
 MySQL 8.4 + Vite).
 
+> **Só quer rodar?** Vá direto para [Subindo o projeto](#subindo-o-projeto).
+
 ## Telas
 
 Carteira — saldo, depósito, transferência e extrato:
@@ -14,6 +16,20 @@ Carteira — saldo, depósito, transferência e extrato:
 Reversão de uma operação (estorno com confirmação):
 
 ![Diálogo de reversão](.github/screenshots/transaction-reversal.png)
+
+## Por que essa stack
+
+- **Familiaridade e produtividade**: é o ecossistema em que tenho mais domínio, o que
+  permitiu focar o tempo no que o desafio realmente avalia (arquitetura, segurança e
+  regras de negócio) em vez de gastar com setup.
+- **Segurança por padrão**: o Laravel já entrega CSRF, hashing de senha, proteção contra
+  mass assignment, prepared statements no Eloquent e rate limiting — base sólida para uma
+  aplicação que lida com dinheiro.
+- **"Baterias inclusas"**: o **starter kit oficial de React** do Laravel trouxe a
+  autenticação pronta (cadastro, login, recuperação de senha e 2FA) via **Laravel
+  Fortify**, sem reinventar essa camada. Sobrou tempo para a lógica financeira.
+- **Inertia + React**: SPA reativa sem manter uma API REST separada nem duplicar
+  validação/roteamento — o back-end Laravel continua sendo a fonte única de verdade.
 
 ## Arquitetura
 
