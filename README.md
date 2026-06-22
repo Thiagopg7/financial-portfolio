@@ -1,9 +1,7 @@
 # Financial Portfolio
 
 Carteira financeira. Usuários podem **depositar, transferir e receber**
-dinheiro, com **validação de saldo** e **reversão** de operações. Construída em Laravel 13 +
-Inertia v3 + React 19, com ambiente de desenvolvimento em Docker (Nginx + PHP-FPM 8.5 +
-MySQL 8.4 + Vite).
+dinheiro, com **validação de saldo** e **reversão** de operações.
 
 > **[Subindo o projeto](#subindo-o-projeto).**
 
@@ -17,19 +15,17 @@ Reversão de uma operação (estorno com confirmação):
 
 ![Diálogo de reversão](.github/screenshots/transaction-reversal.png)
 
-## Por que essa stack
+## Stack
 
-- **Familiaridade e produtividade**: é o ecossistema em que tenho mais domínio, o que
-  permitiu focar o tempo no que o desafio realmente avalia (arquitetura, segurança e
-  regras de negócio) em vez de gastar com setup.
-- **Segurança por padrão**: o Laravel já entrega CSRF, hashing de senha, proteção contra
-  mass assignment, prepared statements no Eloquent e rate limiting — base sólida para uma
-  aplicação que lida com dinheiro.
-- **"Baterias inclusas"**: o **starter kit oficial de React** do Laravel trouxe a
-  autenticação pronta (cadastro, login, recuperação de senha e 2FA) via **Laravel
-  Fortify**, sem reinventar essa camada. Sobrou tempo para a lógica financeira.
+**Laravel 13 + Inertia v3 + React 19**, em Docker (Nginx + PHP-FPM 8.5 + MySQL 8.4 + Vite).
+
+- **Segurança por padrão**: CSRF, hashing de senha, proteção contra mass assignment,
+  prepared statements no Eloquent e rate limiting — base sólida para uma aplicação que
+  lida com dinheiro.
+- **Autenticação completa** via **Laravel Fortify** (cadastro, login, recuperação de senha
+  e 2FA), a partir do starter kit oficial de React do Laravel.
 - **Inertia + React**: SPA reativa sem manter uma API REST separada nem duplicar
-  validação/roteamento — o back-end Laravel continua sendo a fonte única de verdade.
+  validação/roteamento — o back-end Laravel é a fonte única de verdade.
 
 ## Arquitetura
 
@@ -43,8 +39,8 @@ Rota → Form Request (validação) → Controller (orquestra) → WalletService
 - **Controllers**: apenas orquestram. As regras vivem no `WalletService`.
 - **`WalletService`** concentra as três operações (`deposit`, `transfer`, `reverse`), sempre
   dentro de `DB::transaction` com `lockForUpdate` (lock pessimista).
-- **Sem Repository**: o Eloquent (Active Record) já é a camada de dados; uma abstração por
-  cima seria indireção redundante para um único ORM.
+- **Persistência via Eloquent** (Active Record) diretamente, sem uma camada de Repository
+  sobre um único ORM.
 - **Autorização por Policy nativa** (`TransactionPolicy`): cada usuário só age sobre as
   próprias operações.
 
@@ -76,7 +72,7 @@ lançamentos de uma operação), `counterparty_wallet_id`, `reverses_transaction
 - **Reversão** pode ser solicitada por **qualquer participante** da operação; registra quem
   solicitou; não reverte duas vezes nem reverte um estorno.
 
-### Decisões e trade-offs (o porquê)
+### Decisões de design
 
 - **Valores em centavos** (inteiro), nunca float/decimal — elimina erro de arredondamento.
   A conversão reais→centavos acontece só na borda (`App\Support\Money::toCents`, testado

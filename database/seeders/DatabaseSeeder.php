@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
      * Seed the application's database.
      *
      * Cria três usuários de demonstração (senha "password") e um cenário realista
-     * de depósitos, transferências e um estorno, para o avaliador testar de imediato.
+     * de depósitos, transferências e um estorno, para explorar a aplicação de imediato.
      */
     public function run(WalletService $wallet): void
     {
